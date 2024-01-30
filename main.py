@@ -16,18 +16,17 @@ RATE = 44100;
 CHUNK = 1024;
 
 def client(conn: socket.socket, addr, stream):
-    connected = True;
-    while connected:
-        try:
-            data = conn.recv(1024);
-            if data:
-                stream.write(data);
-        except:
-            print(f'[-] client {addr} disconnected');
-            conn.close();
-            connected = False;
-            break;
-
+    try:
+        with sd.InputStream(samplerate=RATE, channels=CHANNELS) as stream:
+            while True:
+                # data = stream.read(CHUNK);
+                data, overflowed = stream.read(RATE);
+                data_bytes = np.array(data).tobytes();
+                conn.sendall(data_bytes);
+    finally:
+        print(f'[-] client {addr} disconnected');
+        p.terminate();
+        conn.close();
 
 if (len(sys.argv) > 1):
     TYPE = 'client';
@@ -39,7 +38,7 @@ if (TYPE == 'server'):
     stream = p.open(format=FORMAT,
                 channels=CHANNELS,
                 rate=RATE,
-                output=True,
+                input=True,
                 frames_per_buffer=CHUNK);
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
     s.bind((HOST, PORT));
@@ -54,19 +53,19 @@ else:
     stream = p.open(format=FORMAT,
                 channels=CHANNELS,
                 rate=RATE,
-                input=True,
+                output=True,
                 frames_per_buffer=CHUNK);
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
     print(f'[*] connecting to {HOST}:{PORT}');
     s.connect((HOST, PORT));
     print(f'[+] connected!');
-    try:
-        with sd.InputStream(samplerate=RATE, channels=CHANNELS) as stream:
-            while True:
-                # data = stream.read(CHUNK);
-                data, overflowed = stream.read(RATE);
-                data_bytes = np.array(data).tobytes();
-                s.sendall(data_bytes);
-    finally:
-        p.terminate();
-        s.close();
+    connected = True;
+    while connected:
+        try:
+            data = s.recv(1024);
+            if data:
+                stream.write(data);
+        except:
+            s.close();
+            connected = False;
+            break;
